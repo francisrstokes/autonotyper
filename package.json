@@ -1,0 +1,11 @@
+{
+  "name": "code-typer-engine",
+  "version": "0.0.1",
+  "description": "An engine for progressively typing, removing and navigating through a code string",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Francis Stokes <stokesie14@gmail.com>",
+  "license": "MIT"
+}
