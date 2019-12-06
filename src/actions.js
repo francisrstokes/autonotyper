@@ -3,6 +3,8 @@ const strReverse = s => s.split('').reverse().join('');
 const generateId = () => Math.random().toString(16).slice(2);
 const beginSpacesRe = /^([ ]+)/g;
 const getHead = a => a[a.length-1];
+const concat = (a, b) => a.concat(b);
+const flatten = a => a.reduce(concat, []);
 
 // Regular Actions
 module.exports.type = code => ({ action: 'type', code });
@@ -58,7 +60,7 @@ module.exports.typeIndented = (code, level = 0, indentationMarker = '  ') => {
 }
 
 // Multi Actions
-module.exports.repeatActions = (n, actions) => Array.from({length: n}, () => actions).flat();
+module.exports.repeatActions = (n, actions) => Array.from({length: n}, () => actions);
 module.exports.typeIndentedBlock = (code, startLevel = 0, indentationMarker = '  ') => {
   const blockStack = [
     { level: 0, stack: [], id: generateId()}
@@ -116,11 +118,11 @@ module.exports.typeIndentedBlock = (code, startLevel = 0, indentationMarker = ' 
     module.exports.gotoCursorMarker(b.id),
   ]);
 
-  const flat = entries.flat()
+  const flat = flatten(entries);
 
   return flat.slice(0, flat.length-1);
 };
 
 // Turn any set of Multi, Derrived, or Normal Actions into a flat list
-module.exports.createTaskList = tasks => tasks.flat(Infinity);
+module.exports.createTaskList = flatten;
 

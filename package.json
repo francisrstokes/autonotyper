@@ -4,8 +4,13 @@
   "description": "An engine for progressively typing, removing and navigating through a code string",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test",
+    "test:coverage": "istanbul cover node_modules/.bin/tape test"
   },
   "author": "Francis Stokes <stokesie14@gmail.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "istanbul": "^0.4.5",
+    "tape": "^4.11.0"
+  }
 }

@@ -1,6 +1,28 @@
-const {stop, createTaskList} = require('./actions');
+const {createTaskList} = require('./actions');
 
-module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
+const alwaysTrue = () => true;
+const noop = () => {};
+
+const baseCallbacks = {
+  onStepComplete: noop,
+  onTaskComplete: noop,
+  onComplete: noop
+}
+
+module.exports.createCodeTyper = (tasks_, capabilities = {}, callbacks_ = {}) => {
+  if (!(typeof callbacks_ === 'object')) {
+    throw new Error('callbacks argument must be an object');
+  }
+
+  if (!(typeof capabilities === 'object')) {
+    throw new Error('capabilities argument must be an object');
+  }
+
+  const callbacks = {
+    ...baseCallbacks,
+    ...callbacks_
+  };
+
   const tasks = createTaskList(tasks_);
 
   const state = {
@@ -26,22 +48,30 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
     state.taskIndex += 1;
   };
 
-  const step = (onStepComplete, onTaskComplete, canUpdate) => {
+  const step = (canUpdate = alwaysTrue) => {
     if (!canUpdate()) {
       setTimeout(() => {
-        step(onStepComplete, onTaskComplete, canUpdate);
+        step(canUpdate);
       }, 100);
       return;
     }
 
-    const activeTask = state.taskIndex >= tasks.length
-      ? stop()
-      : tasks[state.taskIndex];
+    if (state.taskIndex >= tasks.length) {
+      callbacks.onComplete(state.code);
+      return;
+    }
+
+    const activeTask = tasks[state.taskIndex];
+
+    if (activeTask.action === 'stop') {
+      callbacks.onComplete(state.code);
+      return;
+    }
 
     if (activeTask.action === 'modify_code') {
       state.code = activeTask.fn(state.code);
       gotoNextTask();
-      return onTaskComplete(state.code);
+      return callbacks.onTaskComplete(state.code);
     }
 
     if (activeTask.action === 'type') {
@@ -53,7 +83,7 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
         state.code = nextCode;
         state.cursor += activeTask.code.length;
         gotoNextTask();
-        return onTaskComplete(state.code);
+        return callbacks.onTaskComplete(state.code);
       }
 
       const intervalRef = setInterval(() => {
@@ -68,11 +98,11 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
           state.code = nextCode;
           state.cursor += 1;
           state.task.typingIndex += 1;
-          return onStepComplete(state.code);
+          return callbacks.onStepComplete(state.code);
         } else {
           gotoNextTask();
           clearInterval(intervalRef);
-          onTaskComplete(state.code);
+          callbacks.onTaskComplete(state.code);
         }
       }, state.keyStrokeTime);
       return;
@@ -81,11 +111,11 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
     if (activeTask.action === 'wait') {
       if (state.instantMode) {
         gotoNextTask();
-        return onTaskComplete(state.code);
+        return callbacks.onTaskComplete(state.code);
       }
       setTimeout(() => {
         gotoNextTask();
-        onTaskComplete(state.code);
+        callbacks.onTaskComplete(state.code);
       }, activeTask.time);
       return;
     }
@@ -93,31 +123,31 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
     if (activeTask.action === 'set_instant_mode') {
       state.instantMode = activeTask.value;
       gotoNextTask();
-      return onTaskComplete(state.code);
+      return callbacks.onTaskComplete(state.code);
     }
 
     if (activeTask.action === 'mark_cursor') {
       state.markers[activeTask.label] = state.cursor;
       gotoNextTask();
-      return onTaskComplete(state.code);
+      return callbacks.onTaskComplete(state.code);
     }
 
     if (activeTask.action === 'goto_marker') {
       state.cursor = state.markers[activeTask.label];
       gotoNextTask();
-      return onTaskComplete(state.code);
+      return callbacks.onTaskComplete(state.code);
     }
 
     if (activeTask.action === 'find_new_cursor_pos') {
       state.cursor = activeTask.fn(state.code, state.cursor);
       gotoNextTask();
-      return onTaskComplete(state.code);
+      return callbacks.onTaskComplete(state.code);
     }
 
     if (activeTask.action === 'change_keystroke_time') {
       state.keyStrokeTime = activeTask.time;
       gotoNextTask();
-      return onTaskComplete(state.code);
+      return callbacks.onTaskComplete(state.code);
     }
 
     if (activeTask.action === 'backspace') {
@@ -125,9 +155,9 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
         state.code = state.code.slice(0, state.cursor - activeTask.n + 1) +
           state.code.slice(state.cursor + 1);
 
-        state.cursor -= activeTask.n + 1;
+        state.cursor -= activeTask.n - 1;
         gotoNextTask();
-        return onTaskComplete(state.code);
+        return callbacks.onTaskComplete(state.code);
       }
 
       if (state.task.backspaceCount === -1) {
@@ -145,11 +175,11 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
 
         if (state.task.backspaceCount > 0) {
           state.cursor -=  1;
-          return onStepComplete(state.code);
+          return callbacks.onStepComplete(state.code);
         } else {
           gotoNextTask();
           clearInterval(intervalRef);
-          return onTaskComplete(state.code);
+          return callbacks.onTaskComplete(state.code);
         }
       }, state.keyStrokeTime);
       return;
@@ -162,16 +192,16 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
         throw new Error(`Action 'set_scroll_y' requires capability "setScrollY"`);
       }
       gotoNextTask();
-      onTaskComplete(state.code);
+      callbacks.onTaskComplete(state.code);
       return;
     }
 
     if (activeTask.action === 'scroll_y') {
       if (capabilities && capabilities.setScrollY && capabilities.getScrollY) {
         if (state.instantMode) {
-          capabilities.scrollY(capabilities.getScrollY() + activeTask.target);
+          capabilities.setScrollY(capabilities.getScrollY() + activeTask.target);
           gotoNextTask();
-          return onTaskComplete(state.code);
+          return callbacks.onTaskComplete(state.code);
         }
         state.task.scrollTarget = {
           triggered: true,
@@ -182,7 +212,7 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
           if (currentY === state.task.scrollTarget.value) {
             state.task.scrollTarget.triggered = false;
             gotoNextTask();
-            onTaskComplete(state.code);
+            callbacks.onTaskComplete(state.code);
             clearInterval(intervalRef);
             return;
           }
@@ -194,12 +224,12 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
           if (prev === capabilities.getScrollY()) {
             state.task.scrollTarget.triggered = false;
             gotoNextTask();
-            onTaskComplete(state.code);
+            callbacks.onTaskComplete(state.code);
             clearInterval(intervalRef);
             return;
           }
 
-          // No need to send a code update with onStepComplete
+          // No need to send a code update with callbacks.onStepComplete
         }, activeTask.everyMs);
         return;
       } else {
@@ -209,7 +239,7 @@ module.exports.createCodeTyper = (tasks_, capabilities = {}) => {
 
     // if we can't process this task, just go to the next task...
     gotoNextTask();
-    onTaskComplete(state.code);
+    callbacks.onTaskComplete(state.code);
   };
 
   return step;
