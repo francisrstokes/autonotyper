@@ -6,6 +6,13 @@ const getHead = a => a[a.length-1];
 const concat = (a, b) => a.concat(b);
 const flatten = a => a.reduce(concat, []);
 
+const infiniteFlatten = a => a.reduce((a, b) => {
+  if (Array.isArray(b)) {
+    return a.concat(infiniteFlatten(b));
+  }
+  return a.concat(b);
+}, [])
+
 // Regular Actions
 module.exports.type = code => ({ action: 'type', code });
 module.exports.findNewCursorPos = fn => ({ action: 'find_new_cursor_pos', fn });
@@ -48,7 +55,7 @@ module.exports.startAfterPreviousInstanceOf = str => {
     return cursor - nCharsBack;
   });
 }
-module.exports.startAfterSequence = sequence => sequence.map(startAfterNextInstanceOf);
+module.exports.startAfterSequence = sequence => sequence.map(module.exports.startAfterNextInstanceOf);
 module.exports.alterCursor = fn => module.exports.findNewCursorPos((_, cursor) => fn(cursor));
 module.exports.cursorForward = (n=1) => module.exports.alterCursor(c => c + n);
 module.exports.cursorBack = (n=1) => module.exports.alterCursor(c => c - n);
@@ -94,7 +101,7 @@ module.exports.typeIndentedBlock = (code, startLevel = 0, indentationMarker = ' 
         ...(lastContent === '\n'
           ? [module.exports.type('\n')]
           : [module.exports.typeIndented(lastContent, startLevel + b.level)]),
-        gotoCursorMarker(b.id),
+        module.exports.gotoCursorMarker(b.id),
       ]);
     }
 
@@ -113,7 +120,7 @@ module.exports.typeIndentedBlock = (code, startLevel = 0, indentationMarker = ' 
       : [module.exports.typeIndented(firstContent, startLevel + b.level)]),
     module.exports.createCursorMarker(b.id),
     ...(lastContent === '\n'
-      ? [type('\n')]
+      ? [module.exports.type('\n')]
       : [module.exports.typeIndented(lastContent, startLevel + b.level)]),
     module.exports.gotoCursorMarker(b.id),
   ]);
@@ -124,5 +131,5 @@ module.exports.typeIndentedBlock = (code, startLevel = 0, indentationMarker = ' 
 };
 
 // Turn any set of Multi, Derrived, or Normal Actions into a flat list
-module.exports.createTaskList = flatten;
+module.exports.createTaskList = infiniteFlatten;
 
