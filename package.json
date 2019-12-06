@@ -1,5 +1,5 @@
 {
-  "name": "code-typer-engine",
+  "name": "autonotyper",
   "version": "0.0.1",
   "description": "An engine for progressively typing, removing and navigating through a code string",
   "main": "src/index.js",
